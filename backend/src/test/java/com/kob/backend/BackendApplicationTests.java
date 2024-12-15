@@ -13,7 +13,6 @@ class BackendApplicationTests {
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
         System.out.println(passwordEncoder.encode("pczd"));
         System.out.println(passwordEncoder.encode("pb"));
-        System.out.println(passwordEncoder.encode("pa"));
     }
 
 }
