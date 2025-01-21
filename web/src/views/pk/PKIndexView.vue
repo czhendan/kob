@@ -29,6 +29,8 @@ export default {
             })
             socket = new WebSocket(socket_url);
 
+            store.commit("updateLoser", "none");
+
             socket.onopen = () => {
                 console.log("connected!");
                 store.commit("updateSocket", socket);
@@ -43,7 +45,7 @@ export default {
                     });
                     setTimeout(() => {
                         store.commit("updateStatus", "playing")
-                    }, 2000);
+                    }, 1000);
                     store.commit("updateGame", data.game);
                 }
                 else if (data.event === "move") {
