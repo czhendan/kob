@@ -6,6 +6,7 @@ import UserBotIndexView from '../views/user/bot/UserBotIndexView.vue';
 import NotFound from '../views/error/NotFound.vue';
 import UserAccountLoginView from '@/views/user/account/UserAccountLoginView.vue';
 import UserAccountRegisterView from '@/views/user/account/UserAccountRegisterView.vue';
+import RecordContentView from '@/views/record/RecordContentView.vue'
 import store from '@/store/index';
 
 const routes = [
@@ -29,6 +30,14 @@ const routes = [
         path: "/record/",
         name: "record_index",
         component: RecordIndexView,
+        meta: {
+            requestAuth: true,
+        },
+    },
+    {
+        path: "/record/:recordId/",
+        name: "record_content",
+        component: RecordContentView,
         meta: {
             requestAuth: true,
         },

@@ -30,6 +30,7 @@ export default {
             socket = new WebSocket(socket_url);
 
             store.commit("updateLoser", "none");
+            store.commit("updateIsRecord", false);
 
             socket.onopen = () => {
                 console.log("connected!");
