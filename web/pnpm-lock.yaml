@@ -12,7 +12,7 @@ importers:
         specifier: ^5.3.3
         version: 5.3.3(@popperjs/core@2.11.8)
       core-js:
-        specifier: ^3.8.3
+        specifier: ^3.39.0
         version: 3.39.0
       jquery:
         specifier: ^3.7.1
