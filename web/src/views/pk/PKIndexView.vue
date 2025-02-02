@@ -21,7 +21,7 @@ export default {
     },
     setup() {
         const store = useStore();
-        const socket_url = `wss://app7351.acapp.acwing.com.cn/websocket/${store.state.user.token}/`;
+        const socket_url = `wss://app7358.acapp.acwing.com.cn/websocket/${store.state.user.token}/`;
 
         let socket = null;
         onMounted(() => {

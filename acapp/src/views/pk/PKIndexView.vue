@@ -25,7 +25,7 @@ export default {
     },
     setup() {
         const store = useStore();
-        const socket_url = `wss://app7351.acapp.acwing.com.cn/websocket/${store.state.user.token}/`;
+        const socket_url = `wss://app7358.acapp.acwing.com.cn/websocket/${store.state.user.token}/`;
 
         let socket = null;
         onMounted(() => {
@@ -39,7 +39,6 @@ export default {
             store.commit("updateIsRecord", false);
 
             socket.onopen = () => {
-                console.log("connected!");
                 store.commit("updateSocket", socket);
             };
 
@@ -62,7 +61,6 @@ export default {
                     snake1.set_direction(data.b_direction);
                 }
                 else if (data.event === "result") {
-                    console.log(data);
                     const gameObject = store.state.pk.gameObject;
                     const [snake0, snake1] = gameObject.snakes;
 
@@ -77,7 +75,6 @@ export default {
             };
 
             socket.onclose = () => {
-                console.log("disconnected!");
                 store.commit("updateStatus", "matching")
             };
         });
@@ -95,5 +92,11 @@ div.user-color{
     color: white;
     font-size: 30px;
     font-weight: 600;
+}
+div.user-color{
+    position: absolute;
+    bottom: 5vh;
+    width: 100%;
+    text-align: center;
 }
 </style>
