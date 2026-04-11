@@ -99,6 +99,10 @@ export class Snake extends AcGameObject {
     }
 
     update() {
+        if (this.gamemap.store.state.pk.status === "paused") {
+            this.render();
+            return;
+        }
         if (this.status === 'move') {
             this.update_move();
         }

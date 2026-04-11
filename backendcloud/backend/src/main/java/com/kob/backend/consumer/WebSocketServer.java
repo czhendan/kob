@@ -33,6 +33,8 @@ public class WebSocketServer {
     private static BotMapper botMapper;
     public static RestTemplate restTemplate;
     public Game game = null;
+    private static final ConcurrentHashMap<String, Game> games = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, String> userGameMap = new ConcurrentHashMap<>();
     private final static String addPlayerUrl = "http://127.0.0.1:3001/player/add/";
     private final static String removePlayerUrl = "http://127.0.0.1:3001/player/remove/";
 
@@ -67,6 +69,10 @@ public class WebSocketServer {
 
         if (this.user != null) {
             users.put(userId, this);
+            String gameId = getGameIdByUser(userId);
+            if (gameId != null) {
+                this.game = getGameById(gameId);
+            }
         }
         else {
             this.session.close();
@@ -80,6 +86,9 @@ public class WebSocketServer {
         // 关闭链接
         System.out.println("disconnected!");
         if (this.user != null) {
+            if (this.game != null) {
+                this.game.handlePlayerDisconnect(this.user.getId());
+            }
             users.remove(this.user.getId());
         }
     }
@@ -90,15 +99,20 @@ public class WebSocketServer {
         Bot botA = botMapper.selectById(aBotId);
         Bot botB = botMapper.selectById(bBotId);
 
+        String gameId = java.util.UUID.randomUUID().toString();
         Game game = new Game(13,
                 14,
                 20,
+                gameId,
                 a.getId(),
                 botA,
                 b.getId(),
                 botB
                 );
         game.createMap();
+        games.put(gameId, game);
+        userGameMap.put(a.getId(), gameId);
+        userGameMap.put(b.getId(), gameId);
         if (users.get(a.getId()) != null) {
             users.get(a.getId()).game = game;
         }
@@ -116,6 +130,7 @@ public class WebSocketServer {
         respGame.put("a_sy", game.getPlayerA().getSy());
         respGame.put("b_sy", game.getPlayerB().getSy());
         respGame.put("map", game.getG());
+        respGame.put("game_id", gameId);
 
         JSONObject respA = new JSONObject();
         JSONObject respB = new JSONObject();
@@ -181,6 +196,14 @@ public class WebSocketServer {
         else if ("move".equals(event)) {
             move(data.getInteger("direction"));
         }
+        else if ("reconnect".equals(event)) {
+            String gameId = data.getString("game_id");
+            Game targetGame = getGameById(gameId);
+            if (targetGame != null) {
+                this.game = targetGame;
+                targetGame.handlePlayerReconnect(this.user.getId());
+            }
+        }
     }
 
     @OnError
@@ -196,5 +219,20 @@ public class WebSocketServer {
                 e.printStackTrace();
             }
         }
+    }
+
+    public static Game getGameById(String gameId) {
+        return games.get(gameId);
+    }
+
+    public static String getGameIdByUser(Integer userId) {
+        return userGameMap.get(userId);
+    }
+
+    public static void finishGame(Game game) {
+        if (game == null) return;
+        games.remove(game.getGameId());
+        userGameMap.remove(game.getPlayerA().getId());
+        userGameMap.remove(game.getPlayerB().getId());
     }
 }

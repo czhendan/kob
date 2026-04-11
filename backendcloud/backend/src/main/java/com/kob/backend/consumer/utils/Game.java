@@ -13,6 +13,7 @@ import java.util.*;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Game extends Thread {
+    private final String gameId;
     private final Integer rows;
     private final Integer cols;
     private final Integer inner_walls_count;
@@ -22,18 +23,25 @@ public class Game extends Thread {
     private Integer nextStepA = null;
     private Integer nextStepB = null;
     private ReentrantLock lock = new ReentrantLock();
-    private String status = "playing"; // playing -> finished
+    private String status = "playing"; // playing -> paused -> finished
     private String loser = ""; // all: 平局, A: A输, B: B输
     private final static String addBotUrl = "http://127.0.0.1:3002/bot/add/";
+    private Instant pauseStartAt = null;
+    private final static long DISCONNECT_GRACE_MS = 15000;
+    private final static long RESUME_COUNTDOWN_MS = 3000;
+    private final Set<Integer> disconnectedPlayers = new HashSet<>();
+    private boolean resumeScheduled = false;
 
     public Game(Integer rows,
                 Integer cols,
                 Integer inner_walls_count,
+                String gameId,
                 Integer idA,
                 Bot botA,
                 Integer idB,
                 Bot botB
                 ) {
+        this.gameId = gameId;
         this.rows = rows;
         this.cols = cols;
         this.inner_walls_count = inner_walls_count;
@@ -62,6 +70,10 @@ public class Game extends Thread {
 
     public Player getPlayerB() {
         return playerB;
+    }
+
+    public String getGameId() {
+        return gameId;
     }
 
     public void setNextStepA(Integer nextStepA) {
@@ -262,6 +274,7 @@ public class Game extends Thread {
         try {
             JSONObject resp = new JSONObject();
             resp.put("event", "move");
+            resp.put("game_id", gameId);
             resp.put("a_direction", nextStepA);
             resp.put("b_direction", nextStepB);
             nextStepA = nextStepB = null;
@@ -325,8 +338,34 @@ public class Game extends Thread {
     private void sendResult() { // 向两个client公布结果
         JSONObject resp = new JSONObject();
         resp.put("event", "result");
+        resp.put("game_id", gameId);
         resp.put("loser", loser);
         saveToDatebase();
+        sendAllMessage(resp.toJSONString());
+        WebSocketServer.finishGame(this);
+    }
+
+    private void sendPause(Integer disconnectedUserId) {
+        JSONObject resp = new JSONObject();
+        resp.put("event", "pause");
+        resp.put("game_id", gameId);
+        resp.put("disconnected_user_id", disconnectedUserId);
+        resp.put("grace_ms", DISCONNECT_GRACE_MS);
+        sendAllMessage(resp.toJSONString());
+    }
+
+    private void sendResumeCountdown() {
+        JSONObject resp = new JSONObject();
+        resp.put("event", "resume-countdown");
+        resp.put("game_id", gameId);
+        resp.put("seconds", 3);
+        sendAllMessage(resp.toJSONString());
+    }
+
+    private void sendResume() {
+        JSONObject resp = new JSONObject();
+        resp.put("event", "resume");
+        resp.put("game_id", gameId);
         sendAllMessage(resp.toJSONString());
     }
 
@@ -338,6 +377,35 @@ public class Game extends Thread {
             throw new RuntimeException(e);
         }
         for (int i = 0; i < 1000; i++) {
+            if (status.equals("paused")) {
+                if (pauseStartAt != null) {
+                    long pausedMs = Instant.now().toEpochMilli() - pauseStartAt.toEpochMilli();
+                    if (pausedMs >= DISCONNECT_GRACE_MS) {
+                        status = "finished";
+                        lock.lock();
+                        try {
+                            if (disconnectedPlayers.contains(playerA.getId()) && disconnectedPlayers.contains(playerB.getId())) {
+                                loser = "all";
+                            } else if (disconnectedPlayers.contains(playerA.getId())) {
+                                loser = "A";
+                            } else {
+                                loser = "B";
+                            }
+                        } finally {
+                            lock.unlock();
+                        }
+                        sendResult();
+                        break;
+                    }
+                }
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                continue;
+            }
+
             if (nextStep()) { // 是否获取到了两条蛇的下一步操作
                 judge();
 
@@ -369,6 +437,58 @@ public class Game extends Thread {
                 sendResult();
                 break;
             }
+        }
+    }
+
+    public void handlePlayerDisconnect(Integer userId) {
+        lock.lock();
+        try {
+            if ("finished".equals(status)) return;
+            disconnectedPlayers.add(userId);
+            status = "paused";
+            pauseStartAt = Instant.now();
+            resumeScheduled = false;
+        } finally {
+            lock.unlock();
+        }
+        sendPause(userId);
+    }
+
+    public void handlePlayerReconnect(Integer userId) {
+        lock.lock();
+        try {
+            if (!disconnectedPlayers.contains(userId)) {
+                return;
+            }
+            disconnectedPlayers.remove(userId);
+            if ("paused".equals(status) && disconnectedPlayers.isEmpty() && !resumeScheduled) {
+                resumeScheduled = true;
+                sendResumeCountdown();
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(RESUME_COUNTDOWN_MS);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    lock.lock();
+                    try {
+                        if ("paused".equals(status) && disconnectedPlayers.isEmpty()) {
+                            status = "playing";
+                            pauseStartAt = null;
+                        } else {
+                            return;
+                        }
+                    } finally {
+                        lock.unlock();
+                    }
+                    sendResume();
+                }).start();
+            } else if ("paused".equals(status)) {
+                // 还有其他人未连上，告知当前玩家处于暂停状态
+                sendPause(userId);
+            }
+        } finally {
+            lock.unlock();
         }
     }
 }
