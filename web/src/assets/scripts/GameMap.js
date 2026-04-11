@@ -79,7 +79,7 @@ export class GameMap extends AcGameObject {
                 else if (e.key === 's') d = 2;
                 else if (e.key === 'a') d = 3;
 
-                if (d >= 0) {
+                if (d >= 0 && this.store.state.pk.status === "playing") {
                     this.store.state.pk.socket.send(JSON.stringify({
                         event: "move",
                         direction: d,
@@ -130,6 +130,10 @@ export class GameMap extends AcGameObject {
 
     update() {
         this.update_size();
+        if (this.store.state.pk.status === "paused") {
+            this.render();
+            return;
+        }
         if (this.check_ready()) {
             this.next_step();
         }
